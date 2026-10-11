@@ -1,0 +1,55 @@
+name = "milk-delivery"
+main = "src/server/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist/client"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "milk-delivery-db"
+database_id = "LOCAL_DEV_PLACEHOLDER"
+migrations_dir = "migrations"
+
+[vars]
+APP_ENV = "development"
+DISPATCH_GENERATION_TIME = "20:00"
+DISPATCH_AUTO_PUBLISH = "false"
+
+[triggers]
+crons = ["30 14 * * *"]
+
+[env.staging]
+name = "milk-delivery-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+DISPATCH_GENERATION_TIME = "20:00"
+DISPATCH_AUTO_PUBLISH = "false"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "milk-delivery-staging-db"
+database_id = "REPLACE_WITH_STAGING_DATABASE_ID"
+migrations_dir = "migrations"
+
+[env.staging.triggers]
+crons = ["30 14 * * *"]
+
+[env.production]
+name = "milk-delivery-production"
+
+[env.production.vars]
+APP_ENV = "production"
+DISPATCH_GENERATION_TIME = "20:00"
+DISPATCH_AUTO_PUBLISH = "false"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "milk-delivery-production-db"
+database_id = "REPLACE_WITH_PRODUCTION_DATABASE_ID"
+migrations_dir = "migrations"
+
+[env.production.triggers]
+crons = ["30 14 * * *"]
