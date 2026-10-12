@@ -51,6 +51,13 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
+app.notFound((c) => {
+  if (c.req.path === '/api' || c.req.path.startsWith('/api/')) {
+    return c.json({ error: 'Not Found' }, 404);
+  }
+  return c.text('Not Found', 404);
+});
+
 export default {
   fetch: (request: Request, env: Env['Bindings'], executionContext: ExecutionContext) =>
     app.fetch(request, env, executionContext),

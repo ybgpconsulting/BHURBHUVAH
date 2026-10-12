@@ -44,7 +44,7 @@ In a second terminal, run the Vite React frontend dev server (which proxies `/ap
 ```bash
 npm run dev
 ```
- To initialize your first Owner account on a clean database, navigate to `/setup` in the browser.
+To initialize your first Owner account on a clean database, configure a local-only `SETUP_SECRET` in `.dev.vars` and enter it on `/setup`. Never commit `.dev.vars`.
 
 ---
 
@@ -71,10 +71,16 @@ The integration test suite creates a disposable Miniflare D1 database and does n
    npx wrangler d1 create milk-delivery-staging-db
    ```
 2. Copy only the returned staging UUID into `wrangler.toml` at `[env.staging.d1_databases]`. Do not copy a production database ID. The staging environment has its own Worker name, D1 binding, `APP_ENV = "staging"`, and the same verified 20:00 Asia/Kolkata cron.
-3. Store a random secret of at least 32 bytes in the team's secret manager, then set it as a Cloudflare secret (never in `wrangler.toml` or `.env` committed to source control):
+3. Store random secrets of at least 32 bytes in the team's secret manager, then set them as Cloudflare secrets (never in `wrangler.toml`, frontend code, or committed environment files):
    ```bash
    npx wrangler secret put SESSION_SECRET --env staging
+   npx wrangler secret put SETUP_SECRET --env staging
    ```
+   Wrangler prompts for each value. Keep `SETUP_SECRET` available only while creating the first Owner account. After confirming the Owner can log in, permanently remove the bootstrap secret:
+   ```bash
+   npx wrangler secret delete SETUP_SECRET --env staging
+   ```
+   Without a configured staging `SETUP_SECRET`, the bootstrap endpoint remains unavailable; after an Owner exists, setup requests are rejected even before the secret is removed.
 4. Apply migrations only to the staging database:
    ```bash
    npx wrangler d1 migrations apply milk-delivery-staging-db --remote --env staging
@@ -88,7 +94,7 @@ The integration test suite creates a disposable Miniflare D1 database and does n
    npm run build
    npm run deploy:dry-run
    ```
-   The dry-run is deliberately blocked until the staging D1 UUID is configured. It does not target production. A real staging release, when approved, is `npx wrangler deploy --env staging`.
+   The dry-run is deliberately blocked until the staging D1 UUID is configured. It does not target production. A real staging release, when approved, is `npx wrangler deploy --env staging` after building with `npm run build`.
 6. Open the staging Worker URL, complete `/setup` once using a staging-only owner credential, and test customer/subscription create/edit, dated changes, scheduled draft generation, review/publish, partner isolation, delivery recording, follow-up renewal, and master plus route-specific Excel/PDF exports with synthetic records only.
 7. Before migrations or release, export a staging backup and verify restore into a separate disposable D1 database. Never test recovery against production. Retain the backup and restoration notes outside the application.
    ```bash

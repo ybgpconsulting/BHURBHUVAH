@@ -1,67 +1,63 @@
 import { Context, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
+import { pbkdf2, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Env } from '../types';
 
+const PASSWORD_HASH_ITERATIONS = 310000;
+const LEGACY_PASSWORD_HASH_ITERATIONS = 100000;
+const PASSWORD_SALT_BYTES = 16;
+const PASSWORD_HASH_BYTES = 32;
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return new Uint8Array(hex.match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
+}
+
+function derivePasswordHash(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    pbkdf2(password, salt, iterations, PASSWORD_HASH_BYTES, 'sha256', (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(new Uint8Array(derivedKey));
+    });
+  });
+}
+
 export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 310000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
-  const hashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-  return `pbkdf2-sha256$310000$${saltHex}$${hashHex}`;
+  const salt = new Uint8Array(randomBytes(PASSWORD_SALT_BYTES));
+  const derivedKey = await derivePasswordHash(password, salt, PASSWORD_HASH_ITERATIONS);
+  return `pbkdf2-sha256$${PASSWORD_HASH_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(derivedKey)}`;
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const [algorithm, iterationText, saltHex, expectedHex] = hash.startsWith('pbkdf2-sha256$')
-    ? hash.split('$')
-    : ['legacy', '100000', ...hash.split(':')];
-  const iterations = Number(iterationText);
-  if (!saltHex || !expectedHex || !Number.isInteger(iterations) || iterations < 100000
-    || !/^(?:[a-f\d]{2}){16}$/i.test(saltHex) || !/^(?:[a-f\d]{2}){32}$/i.test(expectedHex)) return false;
-  if (algorithm !== 'legacy' && algorithm !== 'pbkdf2-sha256') return false;
+  let iterations: number;
+  let saltHex: string;
+  let expectedHex: string;
 
-  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    256
-  );
-  const actual = new Uint8Array(derivedBits);
-  const expected = new Uint8Array(expectedHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
-  let difference = actual.length ^ expected.length;
-  for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
-    difference |= (actual[i] || 0) ^ (expected[i] || 0);
+  if (hash.startsWith('pbkdf2-sha256$')) {
+    const parts = hash.split('$');
+    if (parts.length !== 4 || parts[0] !== 'pbkdf2-sha256'
+      || parts[1] !== String(PASSWORD_HASH_ITERATIONS)) return false;
+    iterations = PASSWORD_HASH_ITERATIONS;
+    [, , saltHex, expectedHex] = parts;
+  } else {
+    const parts = hash.split(':');
+    if (parts.length !== 2) return false;
+    iterations = LEGACY_PASSWORD_HASH_ITERATIONS;
+    [saltHex, expectedHex] = parts;
   }
-  return difference === 0;
+
+  if (!/^(?:[a-f\d]{2}){16}$/i.test(saltHex)
+    || !/^(?:[a-f\d]{2}){32}$/i.test(expectedHex)) return false;
+
+  const [salt, expected] = [hexToBytes(saltHex), hexToBytes(expectedHex)];
+  const actual = await derivePasswordHash(password, salt, iterations);
+  return timingSafeEqual(actual, expected);
 }
 
 export function generateSessionId(): string {

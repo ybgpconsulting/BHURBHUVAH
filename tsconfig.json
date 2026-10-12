@@ -18,7 +18,7 @@
       "@shared/*": ["./src/shared/*"]
     },
     "baseUrl": ".",
-    "types": ["@cloudflare/workers-types", "vite/client"]
+    "types": ["@cloudflare/workers-types", "vite/client", "node"]
   },
   "include": ["src"],
   "exclude": ["node_modules"]

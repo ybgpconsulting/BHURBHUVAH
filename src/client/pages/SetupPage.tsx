@@ -10,6 +10,7 @@ export default function SetupPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [setupSecret, setSetupSecret] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export default function SetupPage() {
     }
     setLoading(true);
     try {
-      await api.post('/api/auth/setup', { name, email, password });
+      await api.post('/api/auth/setup', { name, email, password, setupSecret });
       addToast('Setup complete! Please log in.', 'success');
       navigate('/login');
     } catch (error: any) {
@@ -60,6 +61,15 @@ export default function SetupPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              id="setup-secret"
+              type="password"
+              label="Bootstrap secret"
+              autoComplete="off"
+              required
+              value={setupSecret}
+              onChange={(e) => setSetupSecret(e.target.value)}
             />
             <Input
               id="password"

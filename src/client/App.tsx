@@ -51,6 +51,9 @@ export default function App() {
                         <UsersPage />
                       </RoleGuard>
                     } />
+                    <Route path="*" element={
+                      <div className="p-6 text-sm text-gray-600">Page not found.</div>
+                    } />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

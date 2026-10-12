@@ -3,6 +3,7 @@ export type Env = {
     DB: D1Database;
     APP_ENV?: string;
     SESSION_SECRET?: string;
+    SETUP_SECRET?: string;
     DISPATCH_GENERATION_TIME?: string;
     DISPATCH_AUTO_PUBLISH?: string;
   };
