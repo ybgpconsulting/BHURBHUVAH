@@ -8,8 +8,8 @@ directory = "./dist/client"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "milk-delivery-db"
-database_id = "LOCAL_DEV_PLACEHOLDER"
+database_name = "milk-delivery-staging-db"
+database_id = "bdd32769-2c73-4f5b-aa2a-ef4a702d87b8"
 migrations_dir = "migrations"
 
 [vars]
