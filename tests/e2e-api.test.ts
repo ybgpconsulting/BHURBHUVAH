@@ -66,7 +66,7 @@ describe('Local Worker API and scheduled dispatch integration', () => {
       await db.prepare(statement).run();
     }
     const marketResearchSchema = (await readFile(new URL('../migrations/0004_market_research.sql', import.meta.url), 'utf8'))
-      .replace(/^\\s*--.*$/gm, '');
+      .replace(/^\s*--.*$/gm, '');
     for (const statement of marketResearchSchema.split(';').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run();
     }
