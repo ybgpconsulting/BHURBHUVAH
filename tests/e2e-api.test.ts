@@ -17,6 +17,7 @@ const env = (appEnv = 'development') => ({
   DB: db,
   APP_ENV: appEnv,
   SESSION_SECRET: appEnv === 'development' ? sessionSecret : undefined,
+  AUTOMATION_API_TOKEN: 'local-test-automation-token-with-32-plus-characters',
 } as any);
 
 async function request(path: string, init: RequestInit = {}, cookie?: string, appEnv = 'development') {
@@ -62,6 +63,11 @@ describe('Local Worker API and scheduled dispatch integration', () => {
       await db.prepare(statement).run();
     }
     for (const statement of renewalSchema.split(';').map(sql => sql.trim()).filter(Boolean)) {
+      await db.prepare(statement).run();
+    }
+    const marketResearchSchema = (await readFile(new URL('../migrations/0004_market_research.sql', import.meta.url), 'utf8'))
+      .replace(/^\\s*--.*$/gm, '');
+    for (const statement of marketResearchSchema.split(';').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run();
     }
 
@@ -524,6 +530,116 @@ describe('Local Worker API and scheduled dispatch integration', () => {
     expect((await db.prepare(`
       SELECT COUNT(*) AS count FROM deliveries WHERE dispatch_run_id = ? AND subscription_id = ?
     `).bind(retry.result.dispatch_run_id, subscriptionId).first<any>()).count).toBe(1);
+  });
+
+  it('supports evidence-backed market research, human approval and consent-gated sender export', async () => {
+    const unauthorized = await request('/api/market-research/leads');
+    expect(unauthorized.status).toBe(401);
+
+    const serviceHeaders = { Authorization: 'Bearer local-test-automation-token-with-32-plus-characters' };
+    const businessPayload = {
+      lead_type: 'business_partner',
+      display_name: 'Sample Organic Store',
+      organization: 'Sample Retail Ltd',
+      segment: 'A2 dairy retailer',
+      city: 'Noida',
+      area: 'Sector 76',
+      source_url: 'https://example.test/a2-store',
+      source_title: 'Public business listing',
+      evidence_summary: 'The public listing describes an organic grocery store with dairy products.',
+      contact_permission: 'public_business',
+      external_reference: 'market-test-business-1',
+    };
+    const intake = await request('/api/market-research/agent/intake', {
+      method: 'POST', headers: serviceHeaders, body: JSON.stringify(businessPayload),
+    });
+    expect(intake.status).toBe(201);
+    const created = await intake.json() as any;
+
+    const duplicate = await request('/api/market-research/agent/intake', {
+      method: 'POST', headers: serviceHeaders, body: JSON.stringify(businessPayload),
+    });
+    expect(duplicate.status).toBe(200);
+    expect((await duplicate.json() as any).duplicate).toBe(true);
+
+    const verify = await request('/api/market-research/agent/verify', {
+      method: 'POST', headers: serviceHeaders,
+      body: JSON.stringify({
+        lead_id: created.id,
+        verification_status: 'verified',
+        verification_score: 82,
+        verification_summary: 'Source checked; it supports the store category and local relevance.',
+        verification_flags: [],
+      }),
+    });
+    expect(verify.status).toBe(200);
+
+    const decision = await request('/api/market-research/leads/' + created.id + '/decision', {
+      method: 'POST', body: JSON.stringify({ decision: 'approve', reviewer_notes: 'Suitable business research lead.' }),
+    }, ownerCookie);
+    expect(decision.status).toBe(200);
+
+    const consumerPayload = {
+      lead_type: 'opt_in_consumer',
+      display_name: 'A2 Trial Enquiry',
+      segment: 'Inbound A2 milk enquiry',
+      city: 'Noida',
+      area: 'Sector 168',
+      source_url: 'https://example.test/opt-in-form',
+      source_title: 'Opt-in form record',
+      evidence_summary: 'The person asked for the current A2 milk trial offer through the business enquiry form.',
+      phone: '919900000123',
+      contact_permission: 'opted_in',
+      consent_evidence: 'Form submission form-123, promotional WhatsApp checkbox selected.',
+      external_reference: 'market-test-opt-in-1',
+    };
+    const consumerIntake = await request('/api/market-research/agent/intake', {
+      method: 'POST', headers: serviceHeaders, body: JSON.stringify(consumerPayload),
+    });
+    expect(consumerIntake.status).toBe(201);
+    const consumer = await consumerIntake.json() as any;
+
+    const consumerVerify = await request('/api/market-research/agent/verify', {
+      method: 'POST', headers: serviceHeaders,
+      body: JSON.stringify({
+        lead_id: consumer.id, verification_status: 'verified', verification_score: 95,
+        verification_summary: 'The opt-in evidence is supplied; source content is recorded for reviewer confirmation.',
+        verification_flags: [],
+      }),
+    });
+    expect(consumerVerify.status).toBe(200);
+    const consumerDecision = await request('/api/market-research/leads/' + consumer.id + '/decision', {
+      method: 'POST', body: JSON.stringify({ decision: 'approve' }),
+    }, ownerCookie);
+    expect(consumerDecision.status).toBe(200);
+
+    const rejectedPayload = { ...businessPayload, display_name: 'Rejected Store', external_reference: 'market-test-rejected-1', source_url: 'https://example.test/rejected-store' };
+    const rejectedIntake = await request('/api/market-research/agent/intake', {
+      method: 'POST', headers: serviceHeaders, body: JSON.stringify(rejectedPayload),
+    });
+    const rejected = await rejectedIntake.json() as any;
+    const rejectVerification = await request('/api/market-research/agent/verify', {
+      method: 'POST', headers: serviceHeaders,
+      body: JSON.stringify({ lead_id: rejected.id, verification_status: 'rejected', verification_score: 5, verification_summary: 'The cited source does not substantiate the claim.', verification_flags: ['Evidence mismatch'] }),
+    });
+    expect(rejectVerification.status).toBe(200);
+    const blockedApproval = await request('/api/market-research/leads/' + rejected.id + '/decision', {
+      method: 'POST', body: JSON.stringify({ decision: 'approve', reviewer_notes: 'Try to override rejected evidence.' }),
+    }, ownerCookie);
+    expect(blockedApproval.status).toBe(400);
+
+    const exportResponse = await request('/api/market-research/export/approved.csv', {}, ownerCookie);
+    expect(exportResponse.status).toBe(200);
+    const csv = await exportResponse.text();
+    expect(csv).toContain('A2 Trial Enquiry');
+    expect(csv).toContain('919900000123');
+    expect(csv).not.toContain('Sample Organic Store');
+    expect(csv).not.toContain('Rejected Store');
+
+    const badToken = await request('/api/market-research/agent/pending', {
+      headers: { Authorization: 'Bearer wrong-token' },
+    });
+    expect(badToken.status).toBe(401);
   });
 
   it('uses secure cookie attributes and rejects cross-origin mutation requests', async () => {
