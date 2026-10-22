@@ -18,6 +18,7 @@ const FollowUpsPage = lazy(() => import('./pages/FollowUpsPage'));
 const DeliveryPartnerPage = lazy(() => import('./pages/DeliveryPartnerPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
+const MarketResearchPage = lazy(() => import('./pages/MarketResearchPage'));
 
 export default function App() {
   return (
@@ -46,6 +47,11 @@ export default function App() {
                     <Route path="/dispatch" element={<DispatchPage />} />
                     <Route path="/followups" element={<FollowUpsPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/market-research" element={
+                      <RoleGuard allowedRoles={['owner', 'manager']}>
+                        <MarketResearchPage />
+                      </RoleGuard>
+                    } />
                     <Route path="/users" element={
                       <RoleGuard allowedRoles={['owner']}>
                         <UsersPage />

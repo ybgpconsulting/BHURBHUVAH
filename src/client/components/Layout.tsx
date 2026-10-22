@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { Home, Users, Package, FileText, Repeat, Map, Truck, Phone, BarChart, Settings, LogOut, Menu, X } from 'lucide-react';
+import { Home, Users, Package, FileText, Repeat, Map, Truck, Phone, BarChart, Settings, LogOut, Menu, X, Target } from 'lucide-react';
 import clsx from 'clsx';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -19,6 +19,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Daily Dispatch', path: '/dispatch', icon: Truck, roles: ['owner', 'admin', 'manager'] },
     { name: 'Follow-ups', path: '/followups', icon: Phone, roles: ['owner', 'admin', 'manager'] },
     { name: 'Reports', path: '/reports', icon: BarChart, roles: ['owner', 'admin'] },
+    { name: 'AI Market Research', path: '/market-research', icon: Target, roles: ['owner', 'manager'] },
     { name: 'Users', path: '/users', icon: Settings, roles: ['owner'] },
   ];
 
