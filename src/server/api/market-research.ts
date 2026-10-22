@@ -229,8 +229,8 @@ function csvCell(value: unknown): string {
 app.get('/export/approved.csv', requireAuth, requireRole(...USER_ROLES), async (c) => {
   try {
     const { results } = await c.env.DB.prepare(
-      'SELECT display_name, phone, area, segment, source_url, contact_permission, consent_evidence FROM market_research_leads WHERE approval_status = ? AND contact_permission = ? AND phone IS NOT NULL AND trim(phone) != ? ORDER BY approved_at DESC',
-    ).bind('approved', 'opted_in', '').all<Record<string, unknown>>();
+      'SELECT display_name, phone, area, segment, source_url, contact_permission, consent_evidence FROM market_research_leads WHERE approval_status = ? AND contact_permission = ? AND phone IS NOT NULL AND trim(phone) != ? AND consent_evidence IS NOT NULL AND trim(consent_evidence) != ? ORDER BY approved_at DESC',
+    ).bind('approved', 'opted_in', '', '').all<Record<string, unknown>>();
     const headers = ['Name', 'Phone', 'Area', 'Segment', 'Consent_Status', 'Source_URL', 'Consent_Evidence'];
     const lines = [headers, ...results.map((row) => [
       row.display_name, row.phone, row.area, row.segment, row.contact_permission, row.source_url, row.consent_evidence,
