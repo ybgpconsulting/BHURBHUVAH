@@ -199,6 +199,9 @@ app.post('/leads/:id/decision', requireAuth, requireRole(...USER_ROLES), async (
       'SELECT id, verification_status FROM market_research_leads WHERE id = ?',
     ).bind(id).first<{ id: string; verification_status: string }>();
     if (!lead) return c.json({ error: 'Lead not found' }, 404);
+    if (decision === 'approve' && lead.verification_status === 'rejected') {
+      return c.json({ error: 'Rejected evidence cannot be approved. Add better evidence and run verification again.' }, 400);
+    }
     if (decision === 'approve' && lead.verification_status !== 'verified' && notes.length < 10) {
       return c.json({ error: 'Add reviewer notes (at least 10 characters) to override an incomplete AI verification.' }, 400);
     }
@@ -220,7 +223,7 @@ app.post('/leads/:id/decision', requireAuth, requireRole(...USER_ROLES), async (
 
 function csvCell(value: unknown): string {
   let text = value == null ? '' : String(value);
-  if (/^[\\s]*[=+\\-@]/.test(text)) text = "'" + text;
+  if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
 app.get('/export/approved.csv', requireAuth, requireRole(...USER_ROLES), async (c) => {
@@ -232,7 +235,7 @@ app.get('/export/approved.csv', requireAuth, requireRole(...USER_ROLES), async (
     const lines = [headers, ...results.map((row) => [
       row.display_name, row.phone, row.area, row.segment, row.contact_permission, row.source_url, row.consent_evidence,
     ])].map((row) => row.map(csvCell).join(','));
-    return new Response(lines.join('\\r\\n') + '\\r\\n', {
+    return new Response(lines.join('\r\n') + '\r\n', {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': 'attachment; filename="bhurbhuvah-approved-opt-in-contacts.csv"',
