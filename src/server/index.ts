@@ -16,6 +16,7 @@ import dashboard from './api/dashboard';
 import reports from './api/reports';
 import exportsAPI from './api/exports';
 import users from './api/users';
+import marketResearch from './api/market-research';
 
 const app = new Hono<Env>();
 
@@ -45,6 +46,7 @@ app.route('/api/dashboard', dashboard);
 app.route('/api/reports', reports);
 app.route('/api/exports', exportsAPI);
 app.route('/api/users', users);
+app.route('/api/market-research', marketResearch);
 
 app.onError((err, c) => {
   console.error(err);
